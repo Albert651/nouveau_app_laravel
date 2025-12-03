@@ -7,7 +7,6 @@ composer install --no-dev --optimize-autoloader
 
 echo "📁 Configuration des permissions..."
 chmod -R 775 storage bootstrap/cache
-
 echo "⚡ Mise en cache des configurations..."
 php artisan config:cache
 php artisan route:cache
