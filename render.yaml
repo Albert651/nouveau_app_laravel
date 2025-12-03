@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: reservation-salle
+    env: php
+    region: frankfurt
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "./render-start.sh"
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_DRIVER
+        value: database
+      - key: DATABASE_URL
+        fromDatabase:
+          name: reservation-salle-db
+          property: connectionString
+
+databases:
+  - name: reservation-salle-db
+    databaseName: reservation_salle
+    plan: free
+    region: frankfurt
