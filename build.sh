@@ -4,7 +4,6 @@ set -o errexit
 
 echo "🔧 Installation des dépendances Composer..."
 composer install --no-dev --optimize-autoloader
-
 echo "📁 Configuration des permissions..."
 chmod -R 775 storage bootstrap/cache
 echo "⚡ Mise en cache des configurations..."
