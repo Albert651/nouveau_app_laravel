@@ -5,14 +5,15 @@ FROM php:8.2-apache
 RUN apt-get update && apt-get install -y \
     git \
     curl \
+    unzip \
+    zip \
+    g++ \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
     libicu-dev \
-    zip \
-    unzip \
-    libpq-dev \
     libzip-dev \
+    libpq-dev \
     nodejs \
     npm \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -29,8 +30,7 @@ RUN docker-php-ext-install \
     gd \
     zip \
     intl \
-    xml \
-    curl
+    xml
 
 # ----------- INSTALLER COMPOSER -----------
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
