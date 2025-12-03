@@ -1,41 +1,57 @@
-# Image PHP 8.2 avec Apache
+# ----------- IMAGE DE BASE -----------
 FROM php:8.2-apache
 
-# Installer les dépendances système
+# ----------- INSTALLER LES DÉPENDANCES SYSTÈME -----------
 RUN apt-get update && apt-get install -y \
     git \
     curl \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
+    libicu-dev \
     zip \
     unzip \
     libpq-dev \
-    libzip-dev
+    libzip-dev \
+    nodejs \
+    npm \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Installer les extensions PHP
-RUN docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip
+# ----------- INSTALLER LES EXTENSIONS PHP -----------
+RUN docker-php-ext-install \
+    pdo \
+    pdo_mysql \
+    pdo_pgsql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    zip \
+    intl \
+    xml \
+    curl
 
-# Installer Composer
+# ----------- INSTALLER COMPOSER -----------
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Activer mod_rewrite pour Laravel
+# ----------- ACTIVER MOD_REWRITE POUR LARAVEL -----------
 RUN a2enmod rewrite
 
-# Définir le répertoire de travail
+# ----------- DÉFINIR LE RÉPERTOIRE DE TRAVAIL -----------
 WORKDIR /var/www/html
 
-# Copier les fichiers du projet
+# ----------- COPIER LES FICHIERS DU PROJET -----------
 COPY . .
 
-# Installer les dépendances Composer
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# ----------- INSTALLER LES DÉPENDANCES COMPOSER -----------
+RUN COMPOSER_MEMORY_LIMIT=-1 composer install --no-dev --optimize-autoloader --no-interaction
 
-# Donner les permissions
+# ----------- DONNER LES PERMISSIONS -----------
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Configuration Apache pour Laravel
+# ----------- CONFIGURATION APACHE POUR LARAVEL -----------
 RUN echo '<VirtualHost *:80>\n\
     DocumentRoot /var/www/html/public\n\
     <Directory /var/www/html/public>\n\
@@ -44,10 +60,7 @@ RUN echo '<VirtualHost *:80>\n\
     </Directory>\n\
 </VirtualHost>' > /etc/apache2/sites-available/000-default.conf
 
-# Exposer le port 80
-EXPOSE 80
-
-# Script de démarrage
+# ----------- SCRIPT DE DÉMARRAGE -----------
 RUN echo '#!/bin/bash\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
@@ -56,4 +69,8 @@ php artisan migrate --force\n\
 php artisan storage:link || true\n\
 apache2-foreground' > /start.sh && chmod +x /start.sh
 
+# ----------- EXPOSER LE PORT 80 -----------
+EXPOSE 80
+
+# ----------- COMMANDÉ DE DÉMARRAGE -----------
 CMD ["/start.sh"]
