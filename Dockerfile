@@ -40,18 +40,21 @@ RUN a2enmod rewrite
 # ----------- DÉFINIR LE RÉPERTOIRE DE TRAVAIL -----------
 WORKDIR /var/www/html
 
-# ----------- COPIER LES FICHIERS DU PROJET -----------
-COPY . .
+# ----------- COPIER COMPOSER FILES UNIQUEMENT -----------
+COPY composer.json composer.lock ./
 
 # ----------- INSTALLER LES DÉPENDANCES COMPOSER -----------
 RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
     --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --no-scripts
+    --no-scripts \
+    --no-autoloader \
+    --no-interaction
 
-# Exécuter les scripts après l'installation
-RUN COMPOSER_MEMORY_LIMIT=-1 composer run-script post-autoload-dump --no-interaction || true
+# ----------- COPIER LE RESTE DES FICHIERS -----------
+COPY . .
+
+# ----------- NETTOYER ET RÉGÉNÉRER L'AUTOLOADER -----------
+RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
 
 # ----------- INSTALLER LES DÉPENDANCES NPM ET BUILD -----------
 RUN npm install --legacy-peer-deps --no-audit --no-fund
@@ -87,12 +90,24 @@ EOF
 RUN cat > /start.sh <<'EOF'
 #!/bin/bash
 set -e
+
+# Nettoyer les caches
+php artisan config:clear
+php artisan cache:clear
+php artisan view:clear
+php artisan route:clear
+
+# Régénérer les caches
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+
+# Migrations et optimisations
 php artisan migrate --force
 php artisan storage:link --force
 php artisan filament:optimize || true
+
+# Démarrer Apache
 apache2-foreground
 EOF
 
