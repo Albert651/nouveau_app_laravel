@@ -71,26 +71,32 @@ RUN chmod -R 775 \
     /var/www/html/bootstrap/cache
 
 # ----------- CONFIGURATION APACHE POUR LARAVEL -----------
-RUN echo '<VirtualHost *:80>\n\
-    DocumentRoot /var/www/html/public\n\
-    <Directory /var/www/html/public>\n\
-        AllowOverride All\n\
-        Require all granted\n\
-    </Directory>\n\
-    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
-    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
-</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+RUN cat > /etc/apache2/sites-available/000-default.conf <<'EOF'
+<VirtualHost *:80>
+    DocumentRoot /var/www/html/public
+    <Directory /var/www/html/public>
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+EOF
 
 # ----------- SCRIPT DE DÉMARRAGE -----------
-RUN echo '#!/bin/bash\n\
-set -e\n\
-php artisan config:cache\n\
-php artisan route:cache\n\
-php artisan view:cache\n\
-php artisan migrate --force\n\
-php artisan storage:link --force\n\
-php artisan filament:optimize || true\n\
-apache2-foreground' > /start.sh && chmod +x /start.sh
+RUN cat > /start.sh <<'EOF'
+#!/bin/bash
+set -e
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan migrate --force
+php artisan storage:link --force
+php artisan filament:optimize || true
+apache2-foreground
+EOF
+
+RUN chmod +x /start.sh
 
 # ----------- EXPOSER LE PORT 80 -----------
 EXPOSE 80
