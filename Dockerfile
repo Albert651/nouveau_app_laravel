@@ -53,7 +53,7 @@ RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
 # ----------- COPIER LE RESTE DES FICHIERS -----------
 COPY . .
 
-# ----------- RÉGÉNÉRER L'AUTOLOADER (SANS --classmap-authoritative) -----------
+# ----------- RÉGÉNÉRER L'AUTOLOADER -----------
 RUN composer dump-autoload --optimize --no-dev
 
 # ----------- INSTALLER LES DÉPENDANCES NPM ET BUILD -----------
@@ -100,58 +100,45 @@ php artisan config:clear || true
 php artisan cache:clear || true
 php artisan view:clear || true
 php artisan route:clear || true
-php artisan event:clear || true
 
-# IMPORTANT: Régénérer l'autoloader sans --classmap-authoritative
+# Régénérer l'autoloader
 echo "🔄 Régénération de l'autoloader..."
 composer dump-autoload --optimize
 
-# Debug: Lister toutes les commandes disponibles
-echo "🔍 Commandes Artisan disponibles :"
-php artisan list | grep -E "user:|Available commands:" || true
-
 # Vérifier la connexion DB
 echo "🔍 Test de connexion à la base de données..."
-php artisan db:show || echo "⚠️ Attention: Impossible d'afficher les infos DB"
+php artisan db:show || echo "⚠️ DB info non disponible, on continue..."
 
 # Migrations
 echo "📊 Exécution des migrations..."
 php artisan migrate --force
 
-# Créer l'utilisateur admin
-echo "👤 Création de l'utilisateur admin..."
-if php artisan user:create-admin 2>&1; then
-    echo "✅ Admin créé via la commande Artisan"
+# Vérifier si des utilisateurs existent déjà
+USER_COUNT=$(php artisan tinker --execute="echo \App\Models\User::count();")
+
+if [ "$USER_COUNT" -eq "0" ]; then
+    echo "👤 Aucun utilisateur trouvé, exécution du seeder..."
+    php artisan db:seed --force
+    echo "✅ Données de démonstration créées avec succès !"
 else
-    echo "⚠️  Commande échouée, utilisation de Tinker..."
-    php artisan tinker --execute="
-try {
-    \$email = 'admin@example.com';
-    if (!\App\Models\User::where('email', \$email)->exists()) {
-        \$user = new \App\Models\User();
-        \$user->name = 'Admin';
-        \$user->email = \$email;
-        \$user->password = \Illuminate\Support\Facades\Hash::make('password');
-        \$user->telephone = '0000000000';
-        \$user->role = 'admin';
-        \$user->actif = true;
-        \$user->email_verified_at = now();
-        \$user->save();
-        echo 'Admin créé avec succès via Tinker' . PHP_EOL;
-    } else {
-        echo 'Admin existe déjà' . PHP_EOL;
-    }
-} catch (\Exception \$e) {
-    echo 'Erreur: ' . \$e->getMessage() . PHP_EOL;
-}
-" || echo "⚠️ Impossible de créer l'admin"
+    echo "✅ Des utilisateurs existent déjà ($USER_COUNT utilisateurs)"
 fi
 
+# Afficher les comptes disponibles
+echo ""
+echo "📋 Comptes disponibles :"
+php artisan tinker --execute="
+\App\Models\User::whereIn('role', ['admin', 'gestionnaire'])->get()->each(function(\$user) {
+    echo '  📧 ' . \$user->email . ' (' . \$user->role . ')' . PHP_EOL;
+});
+"
+
 # Lien storage
+echo ""
 echo "🔗 Création du lien symbolique..."
 php artisan storage:link --force || true
 
-# Cacher les configs (APRÈS les migrations et la création de l'admin)
+# Cacher les configs
 echo "⚡ Génération des caches optimisés..."
 php artisan config:cache
 php artisan route:cache
@@ -163,10 +150,22 @@ echo "✅ =================================="
 echo "✅  Application Laravel prête !"
 echo "✅ =================================="
 echo ""
-echo "📧 Email admin: admin@example.com"
-echo "🔑 Mot de passe: password"
+echo "🔐 COMPTES DE CONNEXION :"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "👑 ADMIN"
+echo "   📧 Email: admin@example.com"
+echo "   🔑 Mot de passe: password"
 echo ""
-echo "⚠️  ⚠️  ⚠️  CHANGEZ CE MOT DE PASSE IMMÉDIATEMENT ! ⚠️  ⚠️  ⚠️"
+echo "👤 GESTIONNAIRE"
+echo "   📧 Email: gestionnaire@example.com"
+echo "   🔑 Mot de passe: password"
+echo ""
+echo "👥 UTILISATEURS"
+echo "   📧 marie@example.com / password"
+echo "   📧 pierre@example.com / password"
+echo "   📧 sophie@example.com / password"
+echo ""
+echo "⚠️  CHANGEZ CES MOTS DE PASSE EN PRODUCTION !"
 echo ""
 
 # Démarrer Apache
