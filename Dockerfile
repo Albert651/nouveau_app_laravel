@@ -53,7 +53,7 @@ RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
 # ----------- COPIER LE RESTE DES FICHIERS -----------
 COPY . .
 
-# ----------- NETTOYER ET RÉGÉNÉRER L'AUTOLOADER -----------
+# ----------- RÉGÉNÉRER L'AUTOLOADER APRÈS AVOIR COPIÉ TOUS LES FICHIERS -----------
 RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
 
 # ----------- INSTALLER LES DÉPENDANCES NPM ET BUILD -----------
@@ -62,9 +62,6 @@ RUN npm run build
 
 # ----------- PUBLIER LES ASSETS FILAMENT -----------
 RUN php artisan filament:assets || true
-
-# ----------- NE PAS GÉNÉRER LES CACHES PENDANT LE BUILD -----------
-# Les caches seront générés au démarrage avec les vraies variables d'environnement
 
 # ----------- DONNER LES PERMISSIONS -----------
 RUN chown -R www-data:www-data \
@@ -96,44 +93,81 @@ set -e
 
 echo "🚀 Démarrage de l'application Laravel..."
 
-# IMPORTANT: Nettoyer TOUS les caches avant de faire quoi que ce soit
+# Nettoyer TOUS les caches
 echo "🧹 Nettoyage complet des caches..."
 rm -rf bootstrap/cache/*.php
-php artisan config:clear
-php artisan cache:clear
-php artisan view:clear
-php artisan route:clear
+php artisan config:clear || true
+php artisan cache:clear || true
+php artisan view:clear || true
+php artisan route:clear || true
+php artisan event:clear || true
 
-# Vérifier la connexion à la base de données
-echo "🔍 Vérification de la connexion à la base de données..."
-php artisan db:show || echo "⚠️  Impossible d'afficher les infos DB, mais on continue..."
+# IMPORTANT: Régénérer l'autoloader pour découvrir les commandes
+echo "🔄 Régénération de l'autoloader..."
+composer dump-autoload --optimize
 
-# Exécuter les migrations
+# Vérifier que la commande existe
+echo "🔍 Vérification de la commande user:create-admin..."
+if php artisan list | grep -q "user:create-admin"; then
+    echo "✅ Commande user:create-admin trouvée !"
+else
+    echo "⚠️  Commande user:create-admin non trouvée, utilisation de Tinker..."
+fi
+
+# Vérifier la connexion DB
+echo "🔍 Test de connexion à la base de données..."
+php artisan db:show || echo "⚠️ Attention: Impossible d'afficher les infos DB"
+
+# Migrations
 echo "📊 Exécution des migrations..."
 php artisan migrate --force
 
-# Créer l'utilisateur admin
+# Créer l'utilisateur admin - Essayer d'abord avec la commande, sinon utiliser Tinker
 echo "👤 Création de l'utilisateur admin..."
-php artisan user:create-admin
+if php artisan user:create-admin 2>/dev/null; then
+    echo "✅ Admin créé via la commande Artisan"
+else
+    echo "⚠️  Commande échouée, utilisation de Tinker..."
+    php artisan tinker --execute="
+    \$email = 'admin@example.com';
+    if (!\App\Models\User::where('email', \$email)->exists()) {
+        \App\Models\User::create([
+            'name' => 'Admin',
+            'email' => \$email,
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            'telephone' => '0000000000',
+            'role' => 'admin',
+            'actif' => true,
+            'email_verified_at' => now(),
+        ]);
+        echo 'Admin créé avec succès via Tinker';
+    } else {
+        echo 'Admin existe déjà';
+    }
+    " || echo "⚠️ Impossible de créer l'admin"
+fi
 
-# Créer le lien symbolique storage
-echo "🔗 Création du lien symbolique storage..."
+# Lien storage
+echo "🔗 Création du lien symbolique..."
 php artisan storage:link --force || true
 
-# Régénérer les caches optimisés (APRÈS les migrations)
+# Cacher les configs (APRÈS les migrations et la création de l'admin)
 echo "⚡ Génération des caches optimisés..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
-
-# Optimisations Filament
-echo "🎨 Optimisation Filament..."
 php artisan filament:optimize || true
 
-echo "✅ Application prête !"
-echo "📧 Utilisateur admin: admin@example.com"
+echo ""
+echo "✅ =================================="
+echo "✅  Application Laravel prête !"
+echo "✅ =================================="
+echo ""
+echo "📧 Email admin: admin@example.com"
 echo "🔑 Mot de passe: password"
-echo "⚠️  CHANGEZ CE MOT DE PASSE IMMÉDIATEMENT !"
+echo ""
+echo "⚠️  ⚠️  ⚠️  CHANGEZ CE MOT DE PASSE IMMÉDIATEMENT ! ⚠️  ⚠️  ⚠️"
+echo ""
 
 # Démarrer Apache
 echo "🌐 Démarrage du serveur Apache..."
