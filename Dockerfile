@@ -45,7 +45,14 @@ WORKDIR /var/www/html
 COPY . .
 
 # ----------- INSTALLER LES DÉPENDANCES COMPOSER -----------
-RUN COMPOSER_MEMORY_LIMIT=-1 composer install --no-dev --optimize-autoloader --no-interaction
+RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
+    --no-dev \
+    --optimize-autoloader \
+    --no-interaction \
+    --no-scripts
+
+# Exécuter les scripts après l'installation
+RUN COMPOSER_MEMORY_LIMIT=-1 composer run-script post-autoload-dump --no-interaction || true
 
 # ----------- DONNER LES PERMISSIONS -----------
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
