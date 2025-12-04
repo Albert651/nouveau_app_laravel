@@ -54,7 +54,7 @@ RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
 RUN COMPOSER_MEMORY_LIMIT=-1 composer run-script post-autoload-dump --no-interaction || true
 
 # ----------- INSTALLER LES DÉPENDANCES NPM ET BUILD -----------
-RUN npm ci --legacy-peer-deps
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 RUN npm run build
 
 # ----------- PUBLIER LES ASSETS FILAMENT -----------
