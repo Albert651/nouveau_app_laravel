@@ -63,6 +63,9 @@ RUN npm run build
 # ----------- PUBLIER LES ASSETS FILAMENT -----------
 RUN php artisan filament:assets || true
 
+# ----------- NE PAS GÉNÉRER LES CACHES PENDANT LE BUILD -----------
+# Les caches seront générés au démarrage avec les vraies variables d'environnement
+
 # ----------- DONNER LES PERMISSIONS -----------
 RUN chown -R www-data:www-data \
     /var/www/html/storage \
@@ -93,12 +96,17 @@ set -e
 
 echo "🚀 Démarrage de l'application Laravel..."
 
-# Nettoyer tous les caches
-echo "🧹 Nettoyage des caches..."
+# IMPORTANT: Nettoyer TOUS les caches avant de faire quoi que ce soit
+echo "🧹 Nettoyage complet des caches..."
+rm -rf bootstrap/cache/*.php
 php artisan config:clear
 php artisan cache:clear
 php artisan view:clear
 php artisan route:clear
+
+# Vérifier la connexion à la base de données
+echo "🔍 Vérification de la connexion à la base de données..."
+php artisan db:show || echo "⚠️  Impossible d'afficher les infos DB, mais on continue..."
 
 # Exécuter les migrations
 echo "📊 Exécution des migrations..."
@@ -112,7 +120,7 @@ php artisan user:create-admin
 echo "🔗 Création du lien symbolique storage..."
 php artisan storage:link --force || true
 
-# Régénérer les caches optimisés
+# Régénérer les caches optimisés (APRÈS les migrations)
 echo "⚡ Génération des caches optimisés..."
 php artisan config:cache
 php artisan route:cache
