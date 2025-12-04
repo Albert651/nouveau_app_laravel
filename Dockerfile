@@ -91,23 +91,44 @@ RUN cat > /start.sh <<'EOF'
 #!/bin/bash
 set -e
 
-# Nettoyer les caches
+echo "🚀 Démarrage de l'application Laravel..."
+
+# Nettoyer tous les caches
+echo "🧹 Nettoyage des caches..."
 php artisan config:clear
 php artisan cache:clear
 php artisan view:clear
 php artisan route:clear
 
-# Régénérer les caches
+# Exécuter les migrations
+echo "📊 Exécution des migrations..."
+php artisan migrate --force
+
+# Créer l'utilisateur admin
+echo "👤 Création de l'utilisateur admin..."
+php artisan user:create-admin
+
+# Créer le lien symbolique storage
+echo "🔗 Création du lien symbolique storage..."
+php artisan storage:link --force || true
+
+# Régénérer les caches optimisés
+echo "⚡ Génération des caches optimisés..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# Migrations et optimisations
-php artisan migrate --force
-php artisan storage:link --force
+# Optimisations Filament
+echo "🎨 Optimisation Filament..."
 php artisan filament:optimize || true
 
+echo "✅ Application prête !"
+echo "📧 Utilisateur admin: admin@example.com"
+echo "🔑 Mot de passe: password"
+echo "⚠️  CHANGEZ CE MOT DE PASSE IMMÉDIATEMENT !"
+
 # Démarrer Apache
+echo "🌐 Démarrage du serveur Apache..."
 apache2-foreground
 EOF
 
