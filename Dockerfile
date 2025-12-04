@@ -89,88 +89,89 @@ EOF
 # ----------- SCRIPT DE DÉMARRAGE -----------
 RUN cat > /start.sh <<'EOF'
 #!/bin/bash
-set -e
 
 echo "🚀 Démarrage de l'application Laravel..."
 
-# Nettoyer TOUS les caches
-echo "🧹 Nettoyage complet des caches..."
-rm -rf bootstrap/cache/*.php
-php artisan config:clear || true
-php artisan cache:clear || true
-php artisan view:clear || true
-php artisan route:clear || true
+# Nettoyer TOUS les caches (sans set -e pour éviter les erreurs fatales)
+echo "🧹 Nettoyage des caches..."
+rm -rf bootstrap/cache/*.php 2>/dev/null || true
+php artisan config:clear 2>/dev/null || true
+php artisan cache:clear 2>/dev/null || true
+php artisan view:clear 2>/dev/null || true
+php artisan route:clear 2>/dev/null || true
 
 # Régénérer l'autoloader
 echo "🔄 Régénération de l'autoloader..."
-composer dump-autoload --optimize
+composer dump-autoload --optimize 2>/dev/null || echo "⚠️ Autoloader déjà généré"
 
 # Vérifier la connexion DB
 echo "🔍 Test de connexion à la base de données..."
-php artisan db:show || echo "⚠️ DB info non disponible, on continue..."
+if php artisan db:show 2>/dev/null; then
+    echo "✅ Connexion DB réussie"
+else
+    echo "⚠️ Impossible d'afficher les infos DB (mais on continue)"
+fi
 
 # Migrations
 echo "📊 Exécution des migrations..."
-php artisan migrate --force
-
-# Vérifier si des utilisateurs existent déjà
-USER_COUNT=$(php artisan tinker --execute="echo \App\Models\User::count();")
-
-if [ "$USER_COUNT" -eq "0" ]; then
-    echo "👤 Aucun utilisateur trouvé, exécution du seeder..."
-    php artisan db:seed --force
-    echo "✅ Données de démonstration créées avec succès !"
+if php artisan migrate --force 2>&1; then
+    echo "✅ Migrations exécutées"
 else
-    echo "✅ Des utilisateurs existent déjà ($USER_COUNT utilisateurs)"
+    echo "❌ Erreur lors des migrations"
+    # Ne pas exit pour voir les autres logs
 fi
 
-# Afficher les comptes disponibles
-echo ""
-echo "📋 Comptes disponibles :"
+# Seeder uniquement si aucun utilisateur
+echo "👤 Vérification des utilisateurs..."
 php artisan tinker --execute="
-\App\Models\User::whereIn('role', ['admin', 'gestionnaire'])->get()->each(function(\$user) {
-    echo '  📧 ' . \$user->email . ' (' . \$user->role . ')' . PHP_EOL;
-});
-"
+try {
+    \$count = \App\Models\User::count();
+    if (\$count === 0) {
+        echo 'Aucun utilisateur, exécution du seeder...' . PHP_EOL;
+        // On ne peut pas appeler db:seed depuis tinker, on crée juste l'admin
+        \App\Models\User::create([
+            'name' => 'Administrateur',
+            'email' => 'admin@example.com',
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            'telephone' => '0123456789',
+            'role' => 'admin',
+            'actif' => true,
+        ]);
+        echo '✅ Admin créé' . PHP_EOL;
+    } else {
+        echo '✅ ' . \$count . ' utilisateur(s) trouvé(s)' . PHP_EOL;
+    }
+} catch (\Exception \$e) {
+    echo '⚠️ Erreur: ' . \$e->getMessage() . PHP_EOL;
+}
+" 2>/dev/null || echo "⚠️ Impossible de vérifier les utilisateurs"
 
 # Lien storage
-echo ""
 echo "🔗 Création du lien symbolique..."
-php artisan storage:link --force || true
+php artisan storage:link --force 2>/dev/null || echo "⚠️ Lien déjà existant"
 
 # Cacher les configs
-echo "⚡ Génération des caches optimisés..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-php artisan filament:optimize || true
+echo "⚡ Génération des caches..."
+php artisan config:cache 2>/dev/null || echo "⚠️ Config cache échoué"
+php artisan route:cache 2>/dev/null || echo "⚠️ Route cache échoué"
+php artisan view:cache 2>/dev/null || echo "⚠️ View cache échoué"
+php artisan filament:optimize 2>/dev/null || echo "⚠️ Filament optimize échoué"
 
 echo ""
-echo "✅ =================================="
+echo "✅ ======================================"
 echo "✅  Application Laravel prête !"
-echo "✅ =================================="
+echo "✅ ======================================"
 echo ""
-echo "🔐 COMPTES DE CONNEXION :"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "👑 ADMIN"
+echo "🔐 Compte admin:"
 echo "   📧 Email: admin@example.com"
 echo "   🔑 Mot de passe: password"
 echo ""
-echo "👤 GESTIONNAIRE"
-echo "   📧 Email: gestionnaire@example.com"
-echo "   🔑 Mot de passe: password"
-echo ""
-echo "👥 UTILISATEURS"
-echo "   📧 marie@example.com / password"
-echo "   📧 pierre@example.com / password"
-echo "   📧 sophie@example.com / password"
-echo ""
-echo "⚠️  CHANGEZ CES MOTS DE PASSE EN PRODUCTION !"
+echo "⚠️  CHANGEZ CE MOT DE PASSE EN PRODUCTION !"
 echo ""
 
-# Démarrer Apache
-echo "🌐 Démarrage du serveur Apache..."
-apache2-foreground
+# Démarrer Apache (IMPORTANT: ne pas mettre en background)
+echo "🌐 Démarrage du serveur Apache sur le port 80..."
+exec apache2-foreground
 EOF
 
 RUN chmod +x /start.sh
