@@ -53,8 +53,8 @@ RUN COMPOSER_MEMORY_LIMIT=-1 composer install \
 # ----------- COPIER LE RESTE DES FICHIERS -----------
 COPY . .
 
-# ----------- RÉGÉNÉRER L'AUTOLOADER APRÈS AVOIR COPIÉ TOUS LES FICHIERS -----------
-RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
+# ----------- RÉGÉNÉRER L'AUTOLOADER (SANS --classmap-authoritative) -----------
+RUN composer dump-autoload --optimize --no-dev
 
 # ----------- INSTALLER LES DÉPENDANCES NPM ET BUILD -----------
 RUN npm install --legacy-peer-deps --no-audit --no-fund
@@ -102,17 +102,13 @@ php artisan view:clear || true
 php artisan route:clear || true
 php artisan event:clear || true
 
-# IMPORTANT: Régénérer l'autoloader pour découvrir les commandes
+# IMPORTANT: Régénérer l'autoloader sans --classmap-authoritative
 echo "🔄 Régénération de l'autoloader..."
 composer dump-autoload --optimize
 
-# Vérifier que la commande existe
-echo "🔍 Vérification de la commande user:create-admin..."
-if php artisan list | grep -q "user:create-admin"; then
-    echo "✅ Commande user:create-admin trouvée !"
-else
-    echo "⚠️  Commande user:create-admin non trouvée, utilisation de Tinker..."
-fi
+# Debug: Lister toutes les commandes disponibles
+echo "🔍 Commandes Artisan disponibles :"
+php artisan list | grep -E "user:|Available commands:" || true
 
 # Vérifier la connexion DB
 echo "🔍 Test de connexion à la base de données..."
@@ -122,29 +118,33 @@ php artisan db:show || echo "⚠️ Attention: Impossible d'afficher les infos D
 echo "📊 Exécution des migrations..."
 php artisan migrate --force
 
-# Créer l'utilisateur admin - Essayer d'abord avec la commande, sinon utiliser Tinker
+# Créer l'utilisateur admin
 echo "👤 Création de l'utilisateur admin..."
-if php artisan user:create-admin 2>/dev/null; then
+if php artisan user:create-admin 2>&1; then
     echo "✅ Admin créé via la commande Artisan"
 else
     echo "⚠️  Commande échouée, utilisation de Tinker..."
     php artisan tinker --execute="
+try {
     \$email = 'admin@example.com';
     if (!\App\Models\User::where('email', \$email)->exists()) {
-        \App\Models\User::create([
-            'name' => 'Admin',
-            'email' => \$email,
-            'password' => \Illuminate\Support\Facades\Hash::make('password'),
-            'telephone' => '0000000000',
-            'role' => 'admin',
-            'actif' => true,
-            'email_verified_at' => now(),
-        ]);
-        echo 'Admin créé avec succès via Tinker';
+        \$user = new \App\Models\User();
+        \$user->name = 'Admin';
+        \$user->email = \$email;
+        \$user->password = \Illuminate\Support\Facades\Hash::make('password');
+        \$user->telephone = '0000000000';
+        \$user->role = 'admin';
+        \$user->actif = true;
+        \$user->email_verified_at = now();
+        \$user->save();
+        echo 'Admin créé avec succès via Tinker' . PHP_EOL;
     } else {
-        echo 'Admin existe déjà';
+        echo 'Admin existe déjà' . PHP_EOL;
     }
-    " || echo "⚠️ Impossible de créer l'admin"
+} catch (\Exception \$e) {
+    echo 'Erreur: ' . \$e->getMessage() . PHP_EOL;
+}
+" || echo "⚠️ Impossible de créer l'admin"
 fi
 
 # Lien storage
